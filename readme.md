@@ -21,7 +21,7 @@
 ## III. Xây dựng Core (Demo)
 1. **Mục tiêu:** Tạo được tài khoản thành công bằng tay kết hợp tool.
 2. **Tiến độ chi tiết:**
-   - [ ] **Task 1: Module Browser** -> Dùng Selenium + `selenium-stealth` để tránh bị phát hiện, tự động trỏ tới trang đăng ký Garena.
+   - [x] **Task 1: Module Browser** -> Dùng Selenium + `selenium-stealth` để tránh bị phát hiện, tự động trỏ tới trang đăng ký Garena.
    - [ ] **Task 2: Module Mail Demo** -> Sử dụng HTTP requests gọi API `mail.tm` để lấy 1 mail ảo ngẫu nhiên, điền vào form.
    - [ ] **Task 3: Cơ chế dừng (Manual Pause)** -> Code dừng lại tầm 15 - 30 giây để người dùng tự tay giải Captcha và nhấn nút nhận mã.
    - [ ] **Task 4: Module Mail OTP** -> Gọi API kiểm tra hòm thư ảo, cào mã OTP 6 số và tự động điền vào Garena.
