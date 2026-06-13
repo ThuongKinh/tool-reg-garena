@@ -1,102 +1,73 @@
 import undetected_chromedriver as uc
 from contextlib import contextmanager
+import platform
+import subprocess
+import os
+import shutil
+import re
 
+def get_local_chrome_major_version():
+    if platform.system() == "Windows":
+        try:
+            import winreg
+            key = winreg.OpenKey(winreg.HKEY_CURRENT_USER, r"Software\Google\Chrome\BLBeacon")
+            version, _ = winreg.QueryValueEx(key, "version")
+            version_match = re.search(r"(\d+)\.", version)
+            if version_match:
+                return version_match.group(1)
+        except Exception:
+            pass
+    return "124"
 
 def create_stealth_driver(headless: bool = False):
-    """
-    Khởi tạo Chrome Driver tối ưu cho Linux Mint.
-    Dùng UC + CDP injection thay vì selenium_stealth để tránh xung đột.
-    """
     options = uc.ChromeOptions()
+    chrome_major = get_local_chrome_major_version()
+    
+    # Giữ User-Agent sạch, không chỉnh sửa sâu
+    user_agent = f"Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/{chrome_major}.0.0.0 Safari/537.36"
+    options.add_argument(f"user-agent={user_agent}")
 
-    if headless:
-        options.add_argument("--headless=new")
-        options.add_argument("--no-sandbox")
-        options.add_argument("--disable-dev-shm-usage")
-    else:
+    # Tạo thư mục profile ẩn danh sạch hoàn toàn cho mỗi lượt
+    data_dir = os.path.join(os.getcwd(), "outputs", "chrome_test_profile")
+    if os.path.exists(data_dir):
+        try:
+            shutil.rmtree(data_dir, ignore_errors=True)
+        except:
+            pass
+    options.add_argument(f"--user-data-dir={data_dir}")
+    options.add_argument("--incognito") # Ép chạy chế độ ẩn danh sạch
+
+    if not headless:
         options.add_argument("--start-maximized")
-        options.add_argument("--disable-dev-shm-usage")
         options.add_argument("--disable-popup-blocking")
-        # --- FIX CRASH LINUX MINT KHI CHẠY CHUNG LUỒNG REQUESTS ---
-        options.add_argument("--remote-debugging-port=0")  # Cấp cổng debug động sạch, tránh trùng port với requests
-        options.add_argument("--no-sandbox")                # Ép quyền chạy cô lập an toàn trên Linux
-
-    # User-Agent nhất quán với platform Win32
-    options.add_argument(
-        "user-agent=Mozilla/5.0 (Windows NT 10.0; Win64; x64) "
-        "AppleWebKit/537.36 (KHTML, like Gecko) "
-        "Chrome/124.0.0.0 Safari/537.36"
-    )
+        options.add_argument("--lang=vi-VN")
+        
+        # GỠ BỎ SWIFTSHADER: Cho phép Chrome dùng card đồ họa thật của máy Dell để JavaScript chạy mượt, đúng tốc độ
+        options.add_argument("--disable-blink-features=AutomationControlled")
 
     try:
-        # Sử dụng cấu hình tiêu chuẩn của UC để tự động hook vào tiến trình Chrome sạch
-        driver = uc.Chrome(options=options)
+        chrome_version_int = int(chrome_major)
+        driver = uc.Chrome(
+            options=options, 
+            use_subprocess=True,
+            version_main=chrome_version_int
+        )
     except Exception as e:
         print(f"[ERROR] Không thể khởi tạo driver: {e}")
         raise
 
-    _inject_fingerprint(driver)
+    # KHÔNG TIÊM MÃ GIẢ LẬP ĐỂ TRÁNH LỖI PHÁT HIỆN CAN THIỆP JAVASCRIPT
     return driver
 
-
-def _inject_fingerprint(driver):
-    """
-    Inject fingerprint nhất quán với Windows qua CDP.
-    Tách riêng để dễ maintain và debug.
-    """
-    script = """
-        // Platform — khớp với user-agent Win32
-        Object.defineProperty(navigator, 'platform', {
-            get: () => 'Win32'
-        });
-
-        // Language
-        Object.defineProperty(navigator, 'language', {
-            get: () => 'vi-VN'
-        });
-        Object.defineProperty(navigator, 'languages', {
-            get: () => ['vi-VN', 'vi', 'en-US', 'en']
-        });
-
-        // WebGL 1 — renderer Windows Intel
-        const _getParameter = WebGLRenderingContext.prototype.getParameter;
-        WebGLRenderingContext.prototype.getParameter = function(parameter) {
-            if (parameter === 37445) return 'Google Inc. (Intel)';
-            if (parameter === 37446) return 'ANGLE (Intel, Intel(R) UHD Graphics 620 Direct3D11 vs_5_0 ps_5_0)';
-            return _getParameter.call(this, parameter);
-        };
-
-        // WebGL 2 — Bọc thêm để đồng bộ 100% chống lộ vết trên Linux
-        if (window.WebGL2RenderingContext) {
-            const _getParameter2 = WebGL2RenderingContext.prototype.getParameter;
-            WebGL2RenderingContext.prototype.getParameter = function(parameter) {
-                if (parameter === 37445) return 'Google Inc. (Intel)';
-                if (parameter === 37446) return 'ANGLE (Intel, Intel(R) UHD Graphics 620 Direct3D11 vs_5_0 ps_5_0)';
-                return _getParameter2.call(this, parameter);
-            };
-        }
-
-        // Ẩn automation flags
-        Object.defineProperty(navigator, 'webdriver', { get: () => undefined });
-    """
-
-    driver.execute_cdp_cmd("Page.addScriptToEvaluateOnNewDocument", {
-        "source": script
-    })
-
-
 def quit_driver(driver):
-    """Đóng driver an toàn, không throw exception."""
     try:
         if driver:
             driver.quit()
     except Exception:
         pass
 
-
 @contextmanager
 def stealth_driver_context(headless: bool = False):
-    """Context manager — tự động cleanup dù có lỗi hay không."""
     driver = None
     try:
         driver = create_stealth_driver(headless=headless)
