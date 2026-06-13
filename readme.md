@@ -96,5 +96,13 @@ Nếu domain chỉ cấu hình mỗi bản ghi MX để nhận thư mà thiếu 
     v=DMARC1; p=none;
     ```
 
-### 3. Chiến lược kháng bộ lọc & Tránh Blacklist (Traffic Warm-up & Retention)
-*(Nội dung tiếp theo của bạn giữ nguyên...)*
+### 3. Chiến lược kiểm soát lưu lượng & Tránh Blacklist (Traffic Shaper & Rate Limiting)
+Để duy trì tuổi thọ cho domain và tránh việc toàn bộ tên miền gốc bị đưa vào danh sách đen, lưu lượng nhận mail xác thực sẽ được điều phối nghiêm ngặt theo mô hình hình thang dựa trên độ tuổi tên miền (Domain Age):
+* **Giai đoạn Thử nghiệm (Ngày 4 - 5):** Chỉ phân phối tối đa từ 10 - 20 tài khoản/ngày trên mỗi tên miền nhằm mục đích thăm dò màng lọc.
+* **Giai đoạn Tăng trưởng (Ngày 6 trở đi):** Nâng dần hạn mức đăng ký theo thang cấp độ (50 ➡️ 100 ➡️ 500 tài khoản/ngày) dựa trên tỷ lệ nhận OTP thành công.
+* **Cơ chế cô lập rủi ro bằng Subdomain:** Thiết kế module tự động chia nhỏ và phân phối tải thông qua các Subdomain con (`s1.yourdomain.xyz`, `s2.yourdomain.xyz`) trên Cloudflare. Khi có biến động block, hệ thống chỉ bị ảnh hưởng ở phân vùng phân phối đó, bảo vệ an toàn cho Apex Domain gốc không bị thâm hụt.
+
+### 4. Tối ưu hóa kiểm tra Logic điều phối Code (Quản lý rủi ro chi phí)
+Để tránh tình trạng thâm hụt ngân sách khi chạy thực tế do lỗi mạng hoặc proxy chết giữa chừng, luồng code bắt buộc phải tuân thủ nghiêm ngặt cơ chế kiểm tra chéo:
+* **Hàm check trạng thái Proxy trước luồng:** Luôn gọi một request ngắn (timeout 3 - 5s) để xác thực tính ổn định của IP Proxy trước khi kích hoạt API giải Captcha bên thứ ba nhằm tối ưu chi phí, loại bỏ hoàn toàn việc mất tiền oan do proxy sập.
+* **Timeout cào OTP đồng bộ:** Do cơ chế Cloudflare Email Routing mất từ 5 - 10 giây để forward thư về hòm thư tổng, vòng lặp cào mail qua kết nối IMAP phải được thiết lập thời gian chờ (Timeout) tối thiểu là 45 - 60 giây để đảm bảo không bị đóng tiến trình vội vàng, gây mất trắng chi phí giải captcha của lượt chạy đó.
