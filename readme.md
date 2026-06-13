@@ -44,28 +44,37 @@
 Khi vận hành hệ thống số lượng lớn, việc sử dụng các hòm thư tạm thời (Temp Mail) sẽ bị hệ thống kiểm soát của Garena chặn đứng do kích hoạt cơ chế phát hiện bất thường (Anomaly Detection). Để giải quyết triệt để rủi ro "bay domain" và tối ưu hóa chi phí vận hành, hệ thống bắt buộc phải triển khai hạ tầng Domain riêng độc lập.
 
 ### 1. Quy trình tự động hóa thiết lập Tên miền (Domain Onboarding Lifecycle)
-Mọi tên miền mới mua phục vụ dự án phải trải qua chuỗi 3 bước thiết lập tự động hóa trước khi đưa vào khai thác thương mại:
-[Danh sách Tên miền mới mua]
+#[Danh sách Tên miền mới mua]
 │
 ▼
-┌──────────────────────────────────────┐
-│ TOOL 1: Cloudflare API Automation    │ ──> Thêm Site tự động vào Cloudflare
-└──────────────────────────────────────┘     Kích hoạt Email Routing (Catch-All)
-│                                  Auto cấu hình DNS (MX, SPF, DKIM, DMARC)
-▼
-┌──────────────────────────────────────┐
-│ TOOL 2: Cloudflare Pages Deploy      │ ──> Đẩy mã nguồn Landing Page tĩnh lên Cloudflare Pages
-└──────────────────────────────────────┘     Xây dựng bộ nhận diện một website doanh nghiệp thực tế
+┌────────────────────────────────────────────────────────┐
+| TOOL 1: Cloudflare API Automation                      │
+├────────────────────────────────────────────────────────┤
+│ 1. Tự động thêm Site vào tài khoản Cloudflare          │
+│ 2. Kích hoạt tính năng Email Routing (Catch-All)       │
+│ 3. Auto cấu hình bản ghi DNS (MX, SPF, DKIM, DMARC)   │
+└──────────────────────────┬─────────────────────────────┘
 │
 ▼
-┌──────────────────────────────────────┐
-│ TOOL 3: Playwright Traffic Generator │ ──> Chạy bot ngầm mô phỏng hành vi người dùng thật
-└──────────────────────────────────────┘     Duy trì lưu lượng truy cập ảo liên tục trong 3 - 5 ngày
+┌────────────────────────────────────────────────────────┐
+│ TOOL 2: Cloudflare Pages Deploy                        │
+├────────────────────────────────────────────────────────┤
+│ 1. Đẩy mã nguồn Landing Page tĩnh lên Cloudflare Pages │
+│ 2. Xây dựng bộ nhận diện một website doanh nghiệp thật │
+└──────────────────────────┬─────────────────────────────┘
 │
 ▼
-[Hệ thống Domain Sạch & Uy Tín] ─────────> Cung cấp đầu vào an toàn cho Tool Reg Garena.
+┌────────────────────────────────────────────────────────┐
+│ TOOL 3: Playwright Traffic Generator                   │
+├────────────────────────────────────────────────────────┤
+│ 1. Chạy bot ngầm mô phỏng hành vi người dùng thật      │
+│ 2. Duy trì lưu lượng truy cập ảo liên tục từ 3 - 5 ngày│
+└──────────────────────────┬─────────────────────────────┘
+│
+▼
+[Hệ thống Domain Sạch & Uy Tín] ──► Cung cấp đầu vào an toàn cho Tool Reg Garena
 
-### 2. Tiêu chuẩn cấu hình xác thực Mail Server (Vượt màng lọc Garena)
+## 2. Tiêu chuẩn cấu hình xác thực Mail Server (Vượt màng lọc Garena)
 Nếu domain chỉ cấu hình mỗi bản ghi MX để nhận thư mà thiếu các bản ghi chứng thực danh tính, hệ thống bảo mật của Garena sẽ phân loại đây là Mail Server lậu và từ chối gửi OTP. Các bản ghi bắt buộc phải nạp qua Cloudflare DNS bao gồm:
 * **MX Records:** Trỏ về máy chủ Email Routing của Cloudflare để bắt toàn bộ các ký tự email ngẫu nhiên đứng trước (Cơ chế Catch-All, ví dụ: `grn_xxxx@yourdomain.xyz`).
 * **SPF (Sender Policy Framework):** Khai báo TXT Record `v=spf1 include:_spf.mx.cloudflare.net ~all` nhằm xác thực quyền hạn phân phối thư của hệ thống.
