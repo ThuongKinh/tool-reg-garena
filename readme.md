@@ -38,3 +38,46 @@
    - [ ] **Task 2: Thay thế Captcha** -> Tích hợp API giải Captcha bên thứ 3 (AnyCaptcha...), nhận tọa độ/token trả về để điền tự động.
    - [ ] **Task 3: Thay thế Network** -> Cấu hình Proxy xoay đi kèm trực tiếp với từng Browser Context.
    - [ ] **Task 4: Tối ưu hóa** -> Chuyển dịch cấu trúc sang OOP kết hợp Đa luồng (`asyncio` / `threading`).
+
+## V. Thiết lập Domain & Kịch bản Ngâm Traffic (Production SLL)
+
+Khi vận hành hệ thống số lượng lớn, việc sử dụng các hòm thư tạm thời (Temp Mail) sẽ bị hệ thống kiểm soát của Garena chặn đứng do kích hoạt cơ chế phát hiện bất thường (Anomaly Detection). Để giải quyết triệt để rủi ro "bay domain" và tối ưu hóa chi phí vận hành, hệ thống bắt buộc phải triển khai hạ tầng Domain riêng độc lập.
+
+### 1. Quy trình tự động hóa thiết lập Tên miền (Domain Onboarding Lifecycle)
+Mọi tên miền mới mua phục vụ dự án phải trải qua chuỗi 3 bước thiết lập tự động hóa trước khi đưa vào khai thác thương mại:
+[Danh sách Tên miền mới mua]
+│
+▼
+┌──────────────────────────────────────┐
+│ TOOL 1: Cloudflare API Automation    │ ──> Thêm Site tự động vào Cloudflare
+└──────────────────────────────────────┘     Kích hoạt Email Routing (Catch-All)
+│                                  Auto cấu hình DNS (MX, SPF, DKIM, DMARC)
+▼
+┌──────────────────────────────────────┐
+│ TOOL 2: Cloudflare Pages Deploy      │ ──> Đẩy mã nguồn Landing Page tĩnh lên Cloudflare Pages
+└──────────────────────────────────────┘     Xây dựng bộ nhận diện một website doanh nghiệp thực tế
+│
+▼
+┌──────────────────────────────────────┐
+│ TOOL 3: Playwright Traffic Generator │ ──> Chạy bot ngầm mô phỏng hành vi người dùng thật
+└──────────────────────────────────────┘     Duy trì lưu lượng truy cập ảo liên tục trong 3 - 5 ngày
+│
+▼
+[Hệ thống Domain Sạch & Uy Tín] ─────────> Cung cấp đầu vào an toàn cho Tool Reg Garena.
+
+### 2. Tiêu chuẩn cấu hình xác thực Mail Server (Vượt màng lọc Garena)
+Nếu domain chỉ cấu hình mỗi bản ghi MX để nhận thư mà thiếu các bản ghi chứng thực danh tính, hệ thống bảo mật của Garena sẽ phân loại đây là Mail Server lậu và từ chối gửi OTP. Các bản ghi bắt buộc phải nạp qua Cloudflare DNS bao gồm:
+* **MX Records:** Trỏ về máy chủ Email Routing của Cloudflare để bắt toàn bộ các ký tự email ngẫu nhiên đứng trước (Cơ chế Catch-All, ví dụ: `grn_xxxx@yourdomain.xyz`).
+* **SPF (Sender Policy Framework):** Khai báo TXT Record `v=spf1 include:_spf.mx.cloudflare.net ~all` nhằm xác thực quyền hạn phân phối thư của hệ thống.
+* **DMARC (Domain-based Message Authentication):** Thêm bản ghi TXT với Host: `_dmarc` và Value: `v=DMARC1; p=none;` để thiết lập chính sách bảo mật nâng cao, gia tăng tối đa điểm uy tín (Reputation) cho domain mới tạo.
+
+### 3. Chiến lược kiểm soát lưu lượng & Tránh Blacklist (Traffic Shaper & Rate Limiting)
+Để duy trì tuổi thọ cho domain và tránh việc toàn bộ tên miền gốc bị đưa vào danh sách đen, lưu lượng nhận mail xác thực sẽ được điều phối nghiêm ngặt theo mô hình hình thang dựa trên độ tuổi tên miền (Domain Age):
+* **Giai đoạn Thử nghiệm (Ngày 4 - 5):** Chỉ phân phối tối đa từ 10 - 20 tài khoản/ngày trên mỗi tên miền nhằm mục đích thăm dò màng lọc.
+* **Giai đoạn Tăng trưởng (Ngày 6 trở đi):** Nâng dần hạn mức đăng ký theo thang cấp độ (50 ➡️ 100 ➡️ 500 tài khoản/ngày) dựa trên tỷ lệ nhận OTP thành công.
+* **Cơ chế cô lập rủi ro bằng Subdomain:** Thiết kế module tự động chia nhỏ và phân phối tải thông qua các Subdomain con (`s1.yourdomain.xyz`, `s2.yourdomain.xyz`) trên Cloudflare. Khi có biến động block, hệ thống chỉ bị ảnh hưởng ở phân vùng phân phối đó, bảo vệ an toàn cho Apex Domain gốc không bị thâm hụt.
+
+### 4. Tối ưu hóa kiểm tra Logic điều phối Code (Quản lý rủi ro chi phí)
+Để tránh tình trạng thâm hụt ngân sách khi chạy thực tế do lỗi mạng hoặc proxy chết giữa chừng, luồng code bắt buộc phải tuân thủ nghiêm ngặt cơ chế kiểm tra chéo:
+* **Hàm check trạng thái Proxy trước luồng:** Luôn gọi một request ngắn (timeout 3 - 5s) để xác thực tính ổn định của IP Proxy trước khi kích hoạt API giải Captcha bên thứ ba nhằm tối ưu chi phí, loại bỏ hoàn toàn việc mất tiền oan do proxy sập.
+* **Timeout cào OTP đồng bộ:** Do cơ chế Cloudflare Email Routing mất từ 5 - 10 giây để forward thư về hòm thư tổng, vòng lặp cào mail qua kết nối IMAP phải được thiết lập thời gian chờ (Timeout) tối thiểu là 45 - 60 giây để đảm bảo không bị đóng tiến trình vội vàng, gây mất trắng chi phí giải captcha của lượt chạy đó.
