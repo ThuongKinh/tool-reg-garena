@@ -42,8 +42,6 @@ Hệ thống bảo mật của Garena được vận hành bởi **DataDome v5.7
    * *Rào cản:* DataDome đo lường độ lệch chuẩn ($\sigma$) và giá trị trung bình ($\mu$) của hành vi thao tác. Việc dùng hàm ngẫu nhiên phẳng (`random.uniform`) gõ phím đều tăm tắp sẽ bị thuật toán học máy (Machine Learning) gắn cờ robot và trả về lỗi `403 Forbidden` khi bấm nút Submit.
    * *Giải pháp:* Áp dụng **Phân phối chuẩn Gaussian** cho nhịp điệu gõ phím. Cấu hình độ trễ phần cứng vật lý (Key Hold Time - thời gian phím lún xuống từ 65ms - 115ms). Chèn các nhịp khựng sinh học (Cognitive Delays) từ 0.12s - 0.25s ngẫu nhiên sau mỗi khối 4 ký tự để mô phỏng khoảng thời gian suy nghĩ và dịch chuyển ngón tay của con người. Rê chuột lướt mượt qua các chặng chênh lệch (Bezier curve) thay vì nhảy tọa độ tức thời.
 
----
-
 ## V. Thiết lập Domain & Kịch bản Ngâm Traffic (Production SLL)
 
 Khi vận hành hệ thống số lượng lớn, việc sử dụng các hòm thư tạm thời (Temp Mail) sẽ bị hệ thống kiểm soát của Garena chặn đứng do kích hoạt cơ chế phát hiện bất thường (Anomaly Detection). Để giải quyết triệt để rủi ro "bay domain" và tối ưu hóa chi phí vận hành, hệ thống bắt buộc phải triển khai hạ tầng Domain riêng độc lập.
@@ -80,26 +78,26 @@ flowchart TD
     end
 
     D --> E([✅ Hệ thống Domain Sạch & Uy Tín])
-    E -->|Cung cấp đầu vào an toàn| F[Tool Reg Garena SLL]``` 
-2. Tiêu chuẩn cấu hình xác thực Mail Server (Vượt màng lọc Garena)
-MX Records (Mail Exchange): Trỏ về máy chủ Email Routing của Cloudflare để bắt toàn bộ các ký tự email ngẫu nhiên đứng trước (Cơ chế Catch-All, ví dụ: grn_xxxx@yourdomain.xyz).
+    E -->|Cung cấp đầu vào an toàn| F[Tool Reg Garena SLL]
+```
 
-SPF (Sender Policy Framework): Khai báo TXT Record với giá trị để xác thực quyền hạn phân phối thư của hệ thống: v=spf1 include:_spf.mx.cloudflare.net ~all.
+### 2. Tiêu chuẩn cấu hình xác thực Mail Server (Vượt màng lọc Garena)
 
-DMARC (Domain-based Message Authentication): Thêm bản ghi TXT với Host: _dmarc và Value dưới đây để thiết lập chính sách bảo mật nâng cao, gia tăng tối đa điểm uy tín (Reputation Score) cho domain mới tạo: v=DMARC1; p=none;.
+* **MX Records (Mail Exchange):** Trỏ về máy chủ Email Routing của Cloudflare để bắt toàn bộ các ký tự email ngẫu nhiên đứng trước (Cơ chế Catch-All, ví dụ: `grn_xxxx@yourdomain.xyz`).
+* **SPF (Sender Policy Framework):** Khai báo TXT Record với giá trị để xác thực quyền hạn phân phối thư của hệ thống: `v=spf1 include:_spf.mx.cloudflare.net ~all`.
+* **DMARC (Domain-based Message Authentication):** Thêm bản ghi TXT với Host: `_dmarc` và Value dưới đây để thiết lập chính sách bảo mật nâng cao, gia tăng tối đa điểm uy tín (Reputation Score) cho domain mới tạo: `v=DMARC1; p=none;`.
 
-3. Chiến lệnh kiểm soát lưu lượng & Tránh Blacklist (Traffic Shaper & Rate Limiting)
+### 3. Chiến lệnh kiểm soát lưu lượng & Tránh Blacklist (Traffic Shaper & Rate Limiting)
+
 Để duy trì tuổi thọ cho domain và tránh việc toàn bộ tên miền gốc bị đưa vào danh sách đen, lưu lượng nhận mail xác thực sẽ được điều phối nghiêm ngặt theo mô hình hình thang dựa trên độ tuổi tên miền (Domain Age):
 
-Giai đoạn Thử nghiệm (Ngày 4 - 5): Chỉ phân phối tối đa từ 10 - 20 tài khoản/ngày trên mỗi tên miền nhằm mục đích thăm dò màng lọc.
+* **Giai đoạn Thử nghiệm (Ngày 4 - 5):** Chỉ phân phối tối đa từ 10 - 20 tài khoản/ngày trên mỗi tên miền nhằm mục đích thăm dò màng lọc.
+* **Giai đoạn Tăng trưởng (Ngày 6 trở đi):** Nâng dần hạn mức đăng ký theo thang cấp độ (50 -> 100 -> 500 tài khoản/ngày) dựa trên tỷ lệ nhận OTP thành công.
+* **Cơ chế cô lập rủi ro bằng Subdomain:** Thiết kế module tự động chia nhỏ và phân phối tải thông qua các Subdomain con (`s1.yourdomain.xyz`, `s2.yourdomain.xyz`) trên Cloudflare. Khi có biến động block, hệ thống chỉ bị ảnh hưởng ở phân vùng phân phối đó, bảo vệ an toàn cho Apex Domain gốc không bị thâm hụt.
 
-Giai đoạn Tăng trưởng (Ngày 6 trở đi): Nâng dần hạn mức đăng ký theo thang cấp độ (50 -> 100 -> 500 tài khoản/ngày) dựa trên tỷ lệ nhận OTP thành công.
+### 4. Tối ưu hóa kiểm tra Logic điều phối Code (Quản lý rủi ro chi phí)
 
-Cơ chế cô lập rủi ro bằng Subdomain: Thiết kế module tự động chia nhỏ và phân phối tải thông qua các Subdomain con (s1.yourdomain.xyz, s2.yourdomain.xyz) trên Cloudflare. Khi có biến động block, hệ thống chỉ bị ảnh hưởng ở phân vùng phân phối đó, bảo vệ an toàn cho Apex Domain gốc không bị thâm hụt.
-
-4. Tối ưu hóa kiểm tra Logic điều phối Code (Quản lý rủi ro chi phí)
 Để tránh tình trạng thâm hụt ngân sách khi chạy thực tế do lỗi mạng hoặc proxy chết giữa chừng, luồng code bắt buộc phải tuân thủ nghiêm ngặt cơ chế kiểm tra chéo:
 
-Hàm check trạng thái Proxy trước luồng: Luôn gọi một request ngắn (timeout 3 - 5s) để xác thực tính ổn định của IP Proxy trước khi kích hoạt API giải Captcha bên thứ ba nhằm tối ưu chi phí, loại bỏ hoàn toàn việc mất tiền oan do proxy sập.
-
-Timeout cào OTP đồng bộ: Do cơ chế Cloudflare Email Routing mất từ 5 - 10 giây để forward thư về hòm thư tổng, vòng lặp cào mail qua kết nối IMAP phải được thiết lập thời gian chờ (Timeout) tối thiểu là 45 - 60 giây để đảm bảo không bị đóng tiến trình vội vàng, gây mất trắng chi phí giải captcha của lượt chạy đó.
+* **Hàm check trạng thái Proxy trước luồng:** Luôn gọi một request ngắn (timeout 3 - 5s) để xác thực tính ổn định của IP Proxy trước khi kích hoạt API giải Captcha bên thứ ba nhằm tối ưu chi phí, loại bỏ hoàn toàn việc mất tiền oan do proxy sập.
+* **Timeout cào OTP đồng bộ:** Do cơ chế Cloudflare Email Routing mất từ 5 - 10 giây để forward thư về hòm thư tổng, vòng lặp cào mail qua kết nối IMAP phải được thiết lập thời gian chờ (Timeout) tối thiểu là 45 - 60 giây để đảm bảo không bị đóng tiến trình vội vàng, gây mất trắng chi phí giải captcha của lượt chạy đó.
