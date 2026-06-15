@@ -26,7 +26,7 @@
    - [x] **Task 3: Cơ chế dừng (Manual Pause)** -> Sử dụng `input()` dừng luồng để người dùng tự tay giải Captcha và nhấn nút nhận mã.
    - [x] **Task 4: Module Mail OTP** -> Dùng thư viện `re` bóc tách mã OTP 8 số của Garena bằng Regex `\b\d{6,8}\b` từ hòm thư trả về.
    - [x] **Task 5: Module Storage** -> Xuất thông tin tài khoản đăng ký thành công ra file `outputs/accounts.csv`.
-   - [x] **Task 6: Network** -> Tích hợp HTTP Proxy (Xác thực Extension/IP) và hàm check live kết nối ngầm trước khi mở Browser.
+   - [ ] **Task 6: Network** -> Tích hợp HTTP Proxy (Xác thực Extension/IP) và hàm check live kết nối ngầm trước khi mở Browser.
 
 ---
 
